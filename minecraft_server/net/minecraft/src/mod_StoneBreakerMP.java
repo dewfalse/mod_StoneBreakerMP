@@ -33,6 +33,7 @@ public class mod_StoneBreakerMP extends BaseModMp {
 	public static final int cmd_mode = 1;
 	public static final int cmd_target = 2;
 	public static final int cmd_limit = 3;
+	public static final int cmd_itembreak = 4;
 
 	@MLProp(info = "separate by ','")
 	public static String blockIDs = "1";
@@ -41,6 +42,8 @@ public class mod_StoneBreakerMP extends BaseModMp {
 
 	@MLProp(info = "maximum number of block break (0 = unlimited)")
 	public static int breaklimit = 0;
+
+	public MinecraftServer minecraftserver = null;
 
 	class BreakResister {
 		public EntityPlayerMP player;
@@ -119,32 +122,41 @@ public class mod_StoneBreakerMP extends BaseModMp {
 	@Override
 	public void handlePacket(Packet230ModLoader packet230modloader,
 			EntityPlayerMP entityplayermp) {
-
-		System.out.printf("[%d] recv %d, %d, %d, %d, %d, %d\n",
-				packet230modloader.modId, packet230modloader.dataInt[0],
-				packet230modloader.dataInt[1], packet230modloader.dataInt[2], packet230modloader.dataInt[3],
-				packet230modloader.dataInt[4], packet230modloader.dataInt[5]);
-
-		switch(packet230modloader.dataInt[0]) {
-		case cmd_break:
-			registerBreak(entityplayermp, packet230modloader.dataInt[1], packet230modloader.dataInt[2],
-					packet230modloader.dataInt[3], packet230modloader.dataInt[4], packet230modloader.dataInt[5]);
-			break;
+		if(minecraftserver == null) {
+			return;
 		}
-		super.handlePacket(packet230modloader, entityplayermp);
+
+		if(packet230modloader.dataInt[0] == cmd_break) {
+
+			System.out.printf("[%d] recv %d, %d, %d, %d, %d, %d\n",
+					packet230modloader.modId, packet230modloader.dataInt[0],
+					packet230modloader.dataInt[1], packet230modloader.dataInt[2], packet230modloader.dataInt[3],
+					packet230modloader.dataInt[4], packet230modloader.dataInt[5]);
+
+			BreakResister breakResister =  new BreakResister(entityplayermp, packet230modloader.dataInt[1], packet230modloader.dataInt[2],
+					packet230modloader.dataInt[3], packet230modloader.dataInt[4], packet230modloader.dataInt[5]);
+			breakBlock(breakResister);
+		}
+		else if(packet230modloader.dataInt[0] == cmd_itembreak) {
+			breakItem(entityplayermp);
+		}
+	}
+
+	public void breakItem(EntityPlayerMP entityplayermp) {
+        ItemStack itemstack = entityplayermp.getCurrentEquippedItem();
+
+        itemstack.onItemDestroyedByUse(entityplayermp);
+        entityplayermp.destroyCurrentEquippedItem();
 	}
 
 	@Override
 	public void onTickInGame(MinecraftServer minecraftserver) {
-		for(BreakResister breakResister : breakResisters) {
-			breakBlock(minecraftserver, breakResister);
+		if(this.minecraftserver == null) {
+			this.minecraftserver = minecraftserver;
 		}
-		breakResisters.clear();
-		return;
 	}
 
-	public void breakBlock(MinecraftServer minecraftserver,
-			BreakResister breakResister) {
+	public void breakBlock(BreakResister breakResister) {
 		System.out.println("breakBlock");
 
 		int blockId = breakResister.worldObj.getBlockId(breakResister.i, breakResister.j, breakResister.k);

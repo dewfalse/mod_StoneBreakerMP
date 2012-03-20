@@ -97,6 +97,7 @@ public class mod_StoneBreakerMP extends BaseModMp {
 	public static final int cmd_mode = 1;
 	public static final int cmd_target = 2;
 	public static final int cmd_limit = 3;
+	public static final int cmd_itembreak = 4;
 
 	public static boolean bInitMode = false;
 	public static boolean bInitTarget = false;
@@ -452,13 +453,15 @@ public class mod_StoneBreakerMP extends BaseModMp {
         //	if(debugmode) System.out.println("breakBlock skip(setBlockWithNotify)");
         //	return true;
         //}
+		EntityClientPlayerMP player = ((EntityClientPlayerMP)minecraft.thePlayer);
 
-    	block.onBlockDestroyedByPlayer(minecraft.theWorld, (int)position.x, (int)position.y, (int)position.z, i);
+        int currentItem = minecraft.thePlayer.inventory.currentItem;
+        player.sendQueue.addToSendQueue(new Packet16BlockItemSwitch(currentItem));
 
 		Packet230ModLoader packet = new Packet230ModLoader();
 		packet.modId = getId();
 		packet.dataInt = new int[6];
-		packet.dataInt[0] = 0;
+		packet.dataInt[0] = cmd_break;
 		packet.dataInt[1] = (int)position.x;
 		packet.dataInt[2] = (int)position.y;
 		packet.dataInt[3] = (int)position.z;
@@ -467,8 +470,7 @@ public class mod_StoneBreakerMP extends BaseModMp {
 		ModLoaderMp.sendPacket(this, packet);
 		if(debugmode) System.out.printf("[%d] send %d, %d, %d, %d, %d, %d\n", packet.modId, packet.dataInt[0], packet.dataInt[1], packet.dataInt[2], packet.dataInt[3], packet.dataInt[4], packet.dataInt[5]);
 
-		breakcount++;
-		EntityClientPlayerMP player = ((EntityClientPlayerMP)minecraft.thePlayer);
+    	block.onBlockDestroyedByPlayer(minecraft.theWorld, (int)position.x, (int)position.y, (int)position.z, i);
 		player.sendQueue.addToSendQueue(new Packet14BlockDig(2, (int)position.x, (int)position.y, (int)position.z, 0));
         minecraft.playerController.onPlayerDestroyBlock((int)position.x, (int)position.y, (int)position.z, 0);
 
@@ -479,6 +481,11 @@ public class mod_StoneBreakerMP extends BaseModMp {
         {
             itemstack.onItemDestroyedByUse(minecraft.thePlayer);
             minecraft.thePlayer.destroyCurrentEquippedItem();
+    		Packet230ModLoader packet2 = new Packet230ModLoader();
+    		packet2.modId = getId();
+    		packet2.dataInt = new int[1];
+    		packet2.dataInt[0] = cmd_itembreak;
+    		ModLoaderMp.sendPacket(this, packet2);
 
             ret = false;
         }
@@ -490,8 +497,7 @@ public class mod_StoneBreakerMP extends BaseModMp {
         	block.harvestBlock(minecraft.theWorld, minecraft.thePlayer, (int)position.x, (int)position.y, (int)position.z, i);
         }
 
-        int currentItem = minecraft.thePlayer.inventory.currentItem;
-        player.sendQueue.addToSendQueue(new Packet16BlockItemSwitch(currentItem));
+		breakcount++;
 
 		if(debugmode) System.out.println("breakBlock end");
 		return ret;
