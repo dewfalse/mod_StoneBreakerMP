@@ -13,10 +13,10 @@ public class mod_StoneBreakerMP extends BaseModMp {
 		int y;
 		int z;
 
-		public Position(int x, int y, int z) {
-			this.x = x;
-			this.y = y;
-			this.z = z;
+		public Position(long l, long m, long n) {
+			this.x = (int) l;
+			this.y = (int) m;
+			this.z = (int) n;
 		}
 
 		public Position subtract(Position position) {
@@ -53,6 +53,7 @@ public class mod_StoneBreakerMP extends BaseModMp {
 	public static int prev_i;
 	public static int prev_j;
 	public static int prev_k;
+	public static int sideHit;
 	public static int blockId;
 	public static int metadata;
 	public static int prev_blockHitWait;
@@ -77,7 +78,7 @@ public class mod_StoneBreakerMP extends BaseModMp {
 
 	public static Set<Integer> targetIDs = new LinkedHashSet();
 
-	public static boolean debugmode = true;
+	public static boolean debugmode = false;
 
 	@MLProp(info = "toggle mode key(default:50 = 'M')")
 	public static int mode_key = 50;
@@ -90,7 +91,7 @@ public class mod_StoneBreakerMP extends BaseModMp {
 
 	public static int breaklimit = 0;
 
-	public static boolean bObfuscate = false;
+	public static boolean bObfuscate = true;
 	private boolean[] mode_allow = new boolean[10];
 
 	public static final int cmd_break = 0;
@@ -201,14 +202,14 @@ public class mod_StoneBreakerMP extends BaseModMp {
 
 		int blockHitWait = getBlockHitWait(minecraft);
 		if(blockHitWait == 5 && blockHitWait != prev_blockHitWait) {
-			System.out.println(blockHitWait);
 			breakflag = true;
+		} else if(blockHitWait == -1) {
+			return false;
 		}
 		prev_blockHitWait = blockHitWait;
 
 		if(breakflag) {
 			if(targetIDs.contains(blockId)) {
-				System.out.println("startBreak");
 				startBreak(minecraft);
 			} else {
 				if(debugmode) {
@@ -237,6 +238,7 @@ public class mod_StoneBreakerMP extends BaseModMp {
 			prev_i = minecraft.objectMouseOver.blockX;
 			prev_j = minecraft.objectMouseOver.blockY;
 			prev_k = minecraft.objectMouseOver.blockZ;
+			sideHit = minecraft.objectMouseOver.sideHit;
 			blockId = minecraft.theWorld.getBlockId(prev_i, prev_j, prev_k);
 			Block block = Block.blocksList[blockId];
 			metadata = minecraft.theWorld.getBlockMetadata(prev_i, prev_j, prev_k);
@@ -251,45 +253,58 @@ public class mod_StoneBreakerMP extends BaseModMp {
 		int blockHitWait = 0;
 
 		if(bObfuscate) {
+			String s = "";
 			try {
 				if(minecraft.playerController.isNotCreative()) {
 					// blockHitWait obfuscate i
 					blockHitWait = (Integer) ModLoader.getPrivateValue(PlayerControllerMP.class, minecraft.playerController, "i");
+					return blockHitWait;
 				}
 				else {
 					// blockHitWait obfuscate i
 					blockHitWait = (Integer) ModLoader.getPrivateValue(PlayerControllerCreative.class, minecraft.playerController, "c");
+					return blockHitWait;
 				}
 			} catch (IllegalArgumentException e) {
+				s = "bObfuscate IllegalArgumentException";
 				e.printStackTrace();
 			} catch (SecurityException e) {
+				s = "bObfuscate SecurityException";
 				e.printStackTrace();
 			} catch (NoSuchFieldException e) {
+				s = "bObfuscate NoSuchFieldException";
 				e.printStackTrace();
 			}
-		} else {
-			try {
-				if(minecraft.playerController.isNotCreative()) {
-					// blockHitWait obfuscate i
-					blockHitWait = (Integer) ModLoader.getPrivateValue(PlayerControllerMP.class, minecraft.playerController, "blockHitDelay");
-				}
-				else {
-					// field_35647_c obfuscate c
-					blockHitWait = (Integer) ModLoader.getPrivateValue(PlayerControllerCreative.class, minecraft.playerController, "field_35647_c");
-				}
-			} catch (IllegalArgumentException e) {
-				bObfuscate =true;
-				e.printStackTrace();
-			} catch (SecurityException e) {
-				bObfuscate =true;
-				e.printStackTrace();
-			} catch (NoSuchFieldException e) {
-				bObfuscate =true;
-				e.printStackTrace();
-			}
+			minecraft.ingameGUI.addChatMessage(s);
 		}
 
-		return blockHitWait;
+		bObfuscate = false;
+
+		String s = "";
+		try {
+			if(minecraft.playerController.isNotCreative()) {
+				// blockHitWait obfuscate i
+				blockHitWait = (Integer) ModLoader.getPrivateValue(PlayerControllerMP.class, minecraft.playerController, "blockHitDelay");
+				return blockHitWait;
+			}
+			else {
+				// field_35647_c obfuscate c
+				blockHitWait = (Integer) ModLoader.getPrivateValue(PlayerControllerCreative.class, minecraft.playerController, "field_35647_c");
+				return blockHitWait;
+			}
+		} catch (IllegalArgumentException e) {
+			s = "not bObfuscate IllegalArgumentException";
+			e.printStackTrace();
+		} catch (SecurityException e) {
+			s = "not bObfuscate SecurityException";
+			e.printStackTrace();
+		} catch (NoSuchFieldException e) {
+			s = "not bObfuscate NoSuchFieldException";
+			e.printStackTrace();
+		}
+		minecraft.ingameGUI.addChatMessage(s);
+
+		return -1;
 	}
 
 	private void continueBreak(Minecraft minecraft) {
@@ -429,15 +444,19 @@ public class mod_StoneBreakerMP extends BaseModMp {
 		}
 
 		int id = minecraft.theWorld.getBlockId((int)position.x, (int)position.y, (int)position.z);
-		if(id != blockId) {
-			if(id == Block.grass.blockID && blockId == Block.dirt.blockID) {
-			}
-			else if(blockId == Block.grass.blockID && id == Block.dirt.blockID) {
-			}
-			else {
-				if(debugmode) System.out.println("breakBlock skip(BlockId)");
-				return true;
-			}
+		boolean bSame = false;
+		if(id == blockId) {
+			bSame = true;
+		}
+		if(id == Block.dirt.blockID && blockId == Block.grass.blockID) {
+			bSame = true;
+		}
+		if(blockId == Block.dirt.blockID && id == Block.grass.blockID) {
+			bSame = true;
+		}
+		if(bSame == false) {
+			if(debugmode) System.out.println("breakBlock skip(BlockId)");
+			return true;
 		}
 		Block block = Block.blocksList[id];
 
@@ -531,10 +550,14 @@ public class mod_StoneBreakerMP extends BaseModMp {
 	}
 
 	public Position getDirection(Minecraft minecraft) {
-		Position player_position = new Position((int)minecraft.thePlayer.posX, (int)minecraft.thePlayer.posY, (int)minecraft.thePlayer.posZ);
+		Position player_position = new Position(Math.round(minecraft.thePlayer.posX), Math.round(minecraft.thePlayer.posY), Math.round(minecraft.thePlayer.posZ));
 		Position block_position = new Position(prev_i, prev_j, prev_k);
 		Position tmp = player_position.subtract(block_position);
-		if(Math.abs(tmp.x) > Math.abs(tmp.z)) {
+		if(tmp.z == 0) {
+			return new Position(Math.round(Math.signum(tmp.x)), 0, 0);
+		} else if(tmp.x == 0) {
+			return new Position(0, 0, Math.round(Math.signum(tmp.x)));
+		} else if(Math.abs(tmp.x) > Math.abs(tmp.z)) {
 			if(tmp.x > 0) {
 				return new Position(1, 0, 0);
 			}
@@ -584,13 +607,55 @@ public class mod_StoneBreakerMP extends BaseModMp {
 			break;
 		case mode_line:
 			positions.add(new Position(prev_i, prev_j, prev_k));
-			vectors.add(getDirection(minecraft));
+
+			/*
+			 * 2 = (0, 0, 1)
+			 * 3 = (0, 0, -1)
+			 * 4 = (1, 0, 0)
+			 * 5 = (-1, 0, 0)
+			 */
+			switch(sideHit) {
+			case 0:
+				vectors.add(new Position(0, 1, 0));
+				break;
+			case 1:
+				vectors.add(new Position(0, -1, 0));
+				break;
+			case 2:
+				vectors.add(new Position(0, 0, 1));
+				break;
+			case 3:
+				vectors.add(new Position(0, 0, -1));
+				break;
+			case 4:
+				vectors.add(new Position(1, 0, 0));
+				break;
+			case 5:
+				vectors.add(new Position(-1, 0, 0));
+				break;
+			}
 			break;
 		case mode_tunnel:
 			positions.add(new Position(prev_i, prev_j - 1, prev_k));
 			positions.add(new Position(prev_i, prev_j, prev_k));
 			positions.add(new Position(prev_i, prev_j + 1, prev_k));
-			vectors.add(getDirection(minecraft));
+			switch(sideHit) {
+			case 2:
+				vectors.add(new Position(0, 0, 1));
+				break;
+			case 3:
+				vectors.add(new Position(0, 0, -1));
+				break;
+			case 4:
+				vectors.add(new Position(1, 0, 0));
+				break;
+			case 5:
+				vectors.add(new Position(-1, 0, 0));
+				break;
+			default:
+				vectors.add(getDirection(minecraft));
+				break;
+			}
 			break;
 		case mode_front_upper:
 			positions.add(new Position(prev_i, prev_j, prev_k));
@@ -698,7 +763,18 @@ public class mod_StoneBreakerMP extends BaseModMp {
 		for(Position vector : vectors) {
 			Position pos = position.addVector(vector.x, vector.y, vector.z);
 			int id = minecraft.theWorld.getBlockId((int)pos.x, (int)pos.y, (int)pos.z);
+			boolean bSame = false;
 			if(id == blockId) {
+				bSame = true;
+			}
+			if(id == Block.dirt.blockID && blockId == Block.grass.blockID) {
+				bSame = true;
+			}
+			if(blockId == Block.dirt.blockID && id == Block.grass.blockID) {
+				bSame = true;
+			}
+
+			if(bSame) {
 				if(positions.contains(pos) == false && newPositions.contains(pos) == false) {
 					if(debugmode) {
 						System.out.print("addNextBreakBlocks ");
